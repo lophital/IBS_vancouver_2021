@@ -1,0 +1,349 @@
+---
+title:  "<span style='font-size: 25px'>RHST vs SDM</style>"
+subtitle: "<span style='font-size: 15px'>세종보로 시연, 나머지 하천은 곧바로 래스터 생산에 투입</style>"
+author: "전청옥 서울대학교 지리학과"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::downcute:
+    highlight: haddock
+    self_contained: yes
+    gallery: yes
+    number_sections: yes
+    pandoc_args: --number-offset=0
+    code_folding: show
+    toc_depth: 4
+    lightbox: yes
+---
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+require(knitr); require(rmdformats); require("DT")
+
+options(width="480"); options(max.print="75")
+options(digits=3); options(scipen=1000)
+options(DT.options = list(class="display compact nowrap hover",
+                          rownames=FALSE));
+options(encoding = 'EUC-KR')
+knitr::opts_chunk$set(
+   echo = TRUE, message = FALSE, warning = FALSE, cache = FALSE,
+   comment = ":)  ", collapse = FALSE, prompt = FALSE, tidy = FALSE,
+   fig.align="center", fig.retina=2.5,
+ aliases=c(h = 'fig.height', w = 'fig.width')
+)
+
+knitr::opts_knit$set(width=75)
+```   
+
+
+Effects of eigenfunction-based spatial variables 
+on the prediction of Species Distribution Model 
+
+International Biogeography Society conference Vancouver 2022 JAN
+
+# Introduction
+
+To check the effect, here we use dataset from Elith, et al. 2020. which is useful for benchmarking various SDM algorithm.
+This dataset(R package disdat) includes 226 anonymised species from 6 regions.
+For faster SDM fitting, here use parallel computing(furrr), all species will be seriesd to list.
+The process is following.
+
+1. Listing species(P, A, B)
+2. Add PCNM variables
+3. Modeling
+4. Cross-validation
+5. Evaluation
+6. Interpretation
+
+
+
+
+
+# 1. Listing species(P, A, B)
+
+```{r}
+library(tidyverse)
+library(sf)
+library(rnaturalearth)
+library(disdat)
+```
+
+```{r}
+getwd()
+```
+
+```{r}
+my.region <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
+
+SDMdata <- map(my.region, my.disData)
+
+SDMdata
+```
+
+```{r}
+SDMdata[[1]]
+```
+
+2nd PA doesn't have environmental variables
+
+# 2. Adding PCNM variables
+
+```{r}
+library(vegan)
+library(geosphere)
+```
+
+
+```{r}
+df.ref <- refEllipsoids()
+
+data.frame(region = c("AWT", "CAN", "NSW", "NZ", "SA", "SWI"),
+           code = c("RF", "CC", "WE", "IN", "WE", "??")) %>% #ellipsoid code in geosphere::refEllipsoid()
+  merge(df.ref, by = "code") %>% 
+  mutate(f = 1/invf) -> df.ref2
+
+df.ref2
+```
+
+```{r}
+my.distgeo.RF <- function(x){distGeo(x, a = df.ref2[4,"a"], f = df.ref2[4,"f"])}
+my.distgeo.CC <- function(x){distGeo(x, a = df.ref2[2,"a"], f = df.ref2[2,"f"])}
+my.distgeo.WE <- function(x){distGeo(x, a = df.ref2[5,"a"], f = df.ref2[5,"f"])}
+my.distgeo.IN <- function(x){distGeo(x, a = df.ref2[3,"a"], f = df.ref2[3,"f"])}
+my.distgeo.QM <- function(x){distGeo(x, a = df.ref2[1,"a"], f = df.ref2[1,"f"])}
+```
+
+
+
+```{r}
+my.geodistm <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = distGeo))}
+my.geodistm.RF <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.RF))}
+my.geodistm.CC <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.CC))}
+my.geodistm.WE <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.WE))}
+my.geodistm.IN <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.IN))}
+my.geodistm.QM <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.QM))}
+```
+
+
+
+```{r}
+distm.po.NSW <- my.geodistm(SDMdata[[3]]$po)
+
+```
+
+
+
+
+
+```{r}
+my.checkRegion <- function (region) {
+  regions <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
+  region <- toupper(region[1])
+  if (!region %in% regions) {
+    stop("unknown region: ", region, ". Should be one of: ", 
+      paste(regions, collapse = ", "))
+  }
+  region
+}
+
+my.reshape_pa <- function (x){
+  r <- stats::reshape(x, varying = colnames(x)[-c(1:4)], times = colnames(x)[-c(1:4)], 
+    v.names = "pa", timevar = "spid", direction = "long")
+  r$id = NULL
+  rownames(r) <- NULL
+  r
+}
+
+my.pkgPath <- 
+function (subdir = "") {
+  system.file(file.path("extdata", subdir), package = "disdat")
+}
+
+
+
+my.disData <- function(region){
+  region <- my.checkRegion(region)
+  path <- my.pkgPath()
+  f <- list.files(pattern = region, path, full.names = TRUE)
+  nms <- gsub("\\.rds", "", basename(f))
+  nms <- gsub(region, "", nms)
+  nms <- gsub("test_", "", nms)
+  nms <- gsub("train_", "", nms)
+  if (length(f) == 4) {
+    x <- lapply(f, readRDS)
+    names(x) <- nms
+    i <- which(nms == "pa")
+    x[[i]] <- my.reshape_pa(x[[i]])
+  }
+  else {
+    fe <- grep("_env", f, value = TRUE)
+    env <- lapply(fe, readRDS)
+    env <- do.call(rbind, env)
+    fa <- grep("_pa", f, value = TRUE)
+    pa <- lapply(fa, readRDS)
+    pa <- lapply(pa, my.reshape_pa)
+    pa <- do.call(rbind, pa)
+    bg <- readRDS(grep("train_bg", f, value = TRUE))
+    po <- readRDS(grep("train_po", f, value = TRUE))
+    x <- list(env = env, pa = pa, bg = bg, po = po)
+  }
+  return(x)
+}
+
+my.disData("NSW")
+
+
+
+```
+
+
+```{r}
+SDMdata[[1]]$pa
+```
+
+
+
+```{r}
+disPa("AWT")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+point.test <- st_as_sf(data.frame(long = rep(c(0, 30, 60, 90, 120, 150, 180, -30, -60, -90, -120, -150), each = 8),
+                                  lat = rep(-90 + (c(2,5,9,14,20,27,35,44)/10), 12)),
+                       coords = c("long", "lat"),
+                       crs = 4326,
+                       remove = F) 
+
+point.test <- sf::st_transform(point.test, crs = 3976) 
+
+
+
+boundary <- ne_countries(returnclass = "sf") %>% st_transform(3412)
+
+ggplot() +
+ geom_sf(data = point.test)
+   
+```
+```{r}
+test <- sf::st_transform(point.test, crs = 3976) 
+ggplot() +
+ geom_sf(data = test)
+```
+
+
+```{r}
+round <- sf::st_read("PCNM_in_graphic/round.shp")
+df.round <- sf::st_coordinates(round)
+
+```
+```{r}
+library(geosphere)
+geodistm <- function(x){as.dist(geosphere::distm(x[,1:2], fun = distGeo))}
+distm.round <- geodistm(df.round)
+distm.point <- geodistm(st_drop_geometry(point.test))
+
+library(vegan)
+
+pcnm.round <- vegan::pcnm(distm.round)
+pcnm.point <- vegan::pcnm(distm.point)
+
+round %>% cbind(pcnm.round$vectors[,1:20]) -> pcnm.round120 
+point.test %>% cbind(pcnm.point$vectors[,1:20]) -> pcnm.point120
+
+
+ggplot(pcnm.point120, aes(color = PCNM2)) +
+ geom_sf() 
+```
+
+```{r}
+library(ggplot2)
+ggplot2::ggplot(pcnm.round120[,4:24]) +
+  geom_sf()
+
+```
+# Loading data
+
+```{r}
+library(disdat)
+```
+
+
+```{r}
+disdat::disPa(region = "AWT", group = "plant")
+```
+
