@@ -73,16 +73,119 @@ getwd()
 ```{r}
 my.region <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
 
-SDMdata <- map(my.region, my.disData)
+SDMdata.AWT <- my.disData("AWT")
+SDMdata.CAN <- my.disData("CAN")
+SDMdata.NSW <- my.disData("NSW")
+SDMdata.NZ <- my.disData("NZ")
+SDMdata.SA <- my.disData("SA")
+SDMdata.SWI <- my.disData("SWI")
 
-SDMdata
 ```
 
 ```{r}
-SDMdata[[1]]
+
+### AWT #####################################################
+SDMdata.AWT.pa <- list()
+for(i in unique(SDMdata.AWT$pa$spid)){
+  SDMdata.AWT.pa[[i]] <- SDMdata.AWT$pa %>% filter(spid == i)
+  
+}
+
+SDMdata.AWT.po <- list()
+for(i in unique(SDMdata.AWT$po$spid)){
+  SDMdata.AWT.po[[i]] <- SDMdata.AWT$po %>% filter(spid == i)
+  
+}
+
+######## CAN #####################################################
+SDMdata.CAN.pa <- list()
+for(i in unique(SDMdata.CAN$pa$spid)){
+  SDMdata.CAN.pa[[i]] <- SDMdata.CAN$pa %>% filter(spid == i)
+  
+}
+
+SDMdata.CAN.po <- list()
+for(i in unique(SDMdata.CAN$po$spid)){
+  SDMdata.CAN.po[[i]] <- SDMdata.CAN$po %>% filter(spid == i)
+  
+}
+
+################# NSW #######################################
+SDMdata.NSW.pa <- list()
+for(i in unique(SDMdata.NSW$pa$spid)){
+  SDMdata.NSW.pa[[i]] <- SDMdata.NSW$pa %>% filter(spid == i)
+  
+}
+
+SDMdata.NSW.po <- list()
+for(i in unique(SDMdata.NSW$po$spid)){
+  SDMdata.NSW.po[[i]] <- SDMdata.NSW$po %>% filter(spid == i)
+  
+}
+
+############################ NZ #############################
+SDMdata.NZ.pa <- list()
+for(i in unique(SDMdata.NZ$pa$spid)){
+  SDMdata.NZ.pa[[i]] <- SDMdata.NZ$pa %>% filter(spid == i)
+  
+}
+
+SDMdata.NZ.po <- list()
+for(i in unique(SDMdata.NZ$po$spid)){
+  SDMdata.NZ.po[[i]] <- SDMdata.NZ$po %>% filter(spid == i)
+  
+}
+
+####################################### SA ####################
+SDMdata.SA.pa <- list()
+for(i in unique(SDMdata.SA$pa$spid)){
+  SDMdata.SA.pa[[i]] <- SDMdata.SA$pa %>% filter(spid == i)
+  
+}
+
+SDMdata.SA.po <- list()
+for(i in unique(SDMdata.SA$po$spid)){
+  SDMdata.SA.po[[i]] <- SDMdata.SA$po %>% filter(spid == i)
+  
+}
+
+##################################################### SWI #######
+SDMdata.SWI.pa <- list()
+for(i in unique(SDMdata.SWI$pa$spid)){
+  SDMdata.SWI.pa[[i]] <- SDMdata.SWI$pa %>% filter(spid == i)
+  
+}
+
+SDMdata.SWI.po <- list()
+for(i in unique(SDMdata.SWI$po$spid)){
+  SDMdata.SWI.po[[i]] <- SDMdata.SWI$po %>% filter(spid == i)
+  
+}
+
+
+```
+
+```{r}
+SDMdata.AWT.pa$awt01
+```
+```{r}
+map(SDMdata.AWT.pa, function(x){filter(x, pa == 1)})
 ```
 
 2nd PA doesn't have environmental variables
+
+
+```{r}
+SDMdata.AWT.pa <- map(SDMdata.AWT.pa, function(x){merge(x, SDMdata.AWT$env, by = "siteid")})
+SDMdata.CAN.pa <- map(SDMdata.CAN.pa, function(x){merge(x, SDMdata.CAN$env, by = "siteid")}) 
+SDMdata.NSW.pa <- map(SDMdata.NSW.pa, function(x){merge(x, SDMdata.NSW$env, by = "siteid")})
+SDMdata.NZ.pa <- map(SDMdata.NZ.pa, function(x){merge(x, SDMdata.NZ$env, by = "siteid")})
+SDMdata.SA.pa <- map(SDMdata.SA.pa, function(x){merge(x, SDMdata.SA$env, by = "siteid")})
+SDMdata.SWI.pa <- map(SDMdata.SWI.pa, function(x){merge(x, SDMdata.SWI$env, by = "siteid")})
+```
+
+
+
 
 # 2. Adding PCNM variables
 
@@ -103,29 +206,95 @@ data.frame(region = c("AWT", "CAN", "NSW", "NZ", "SA", "SWI"),
 df.ref2
 ```
 
+Except NSW and SA, SWI, CAN, NZ, AWT needed to be transfrom to WGS84
+
+load all to sf
 ```{r}
-my.distgeo.RF <- function(x){distGeo(x, a = df.ref2[4,"a"], f = df.ref2[4,"f"])}
-my.distgeo.CC <- function(x){distGeo(x, a = df.ref2[2,"a"], f = df.ref2[2,"f"])}
-my.distgeo.WE <- function(x){distGeo(x, a = df.ref2[5,"a"], f = df.ref2[5,"f"])}
-my.distgeo.IN <- function(x){distGeo(x, a = df.ref2[3,"a"], f = df.ref2[3,"f"])}
-my.distgeo.QM <- function(x){distGeo(x, a = df.ref2[1,"a"], f = df.ref2[1,"f"])}
+my.transformer.AWT <-
+function(x){
+  x %>% 
+    sf::st_as_sf(coords = c("x","y"),
+                 crs = 28355) %>% 
+    sf::st_transform(crs = 4326) %>% 
+    st_coordinates() %>%
+    cbind(x) %>%
+  dplyr::rename(long = X,
+                lat = Y)}
+
+my.transformer.CAN <-
+function(x){
+  x %>% 
+    sf::st_as_sf(coords = c("x","y"),
+                 crs = 4008) %>% 
+    sf::st_transform(crs = 4326) %>% 
+    st_coordinates() %>%
+    cbind(x) %>%
+  dplyr::rename(long = X,
+                lat = Y)}
+
+my.transformer.NZ <-
+function(x){
+  x %>% 
+    sf::st_as_sf(coords = c("x","y"),
+                 crs = 27200) %>% 
+    sf::st_transform(crs = 4326) %>% 
+    st_coordinates() %>%
+    cbind(x) %>%
+  dplyr::rename(long = X,
+                lat = Y)}
+
+my.transformer.SWI <-
+function(x){
+  x %>% 
+    sf::st_as_sf(coords = c("x","y"),
+                 crs = 21781) %>% 
+    sf::st_transform(crs = 4326) %>% 
+    st_coordinates() %>%
+    cbind(x) %>%
+  dplyr::rename(long = X,
+                lat = Y)}
+
+sf.AWT.po <- map(SDMdata.AWT.po, my.transformer.AWT)
+sf.CAN.po <- map(SDMdata.CAN.po, my.transformer.CAN)
+sf.NSW.po <- map(SDMdata.NSW.po, function(x){x %>%
+                                              sf::st_as_sf(coords = c("x","y"),
+                                                           crs = 4326) %>% 
+                                                  st_coordinates() %>%
+                                                  cbind(x)} %>% 
+                                              dplyr::rename(long = X,
+                                                            lat = Y)
+                 )
+sf.NZ.po <- map(SDMdata.NZ.po, my.transformer.NZ)
+sf.SA.po <- map(SDMdata.SA.po, function(x){x %>%
+                                              sf::st_as_sf(coords = c("x","y"),
+                                                           crs = 4326) %>% 
+                                                  st_coordinates() %>%
+                                                  cbind(x)} %>% 
+                                              dplyr::rename(long = X,
+                                                            lat = Y)
+                 )
+
+sf.SWI.po <- map(SDMdata.SWI.po, my.transformer.SWI)
+
+```
+
+
+```{r}
+my.geodistm <- function(x){as.dist(geosphere::distm(x[,c("long","lat")], fun = distGeo))}
+
+distm.AWT.po <- map(sf.AWT.po, my.geodistm)
+distm.CAN.po <- map(sf.CAN.po, my.geodistm)
+distm.NSW.po <- map(sf.NSW.po, my.geodistm)
+distm.NZ.po <- map(sf.NZ.po, my.geodistm)
+distm.SA.po <- map(sf.SA.po, my.geodistm)
+distm.SWI.po <- map(sf.SWI.po, my.geodistm)
+
 ```
 
 
 
 ```{r}
-my.geodistm <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = distGeo))}
-my.geodistm.RF <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.RF))}
-my.geodistm.CC <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.CC))}
-my.geodistm.WE <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.WE))}
-my.geodistm.IN <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.IN))}
-my.geodistm.QM <- function(x){as.dist(geosphere::distm(x[,c("x","y")], fun = my.distgeo.QM))}
-```
-
-
-
-```{r}
-distm.po.NSW <- my.geodistm(SDMdata[[3]]$po)
+distGeo(SDMdata.AWT.po$awt01, a = df.ref2[4,"a"], f = df.ref2[4,"f"])
 
 ```
 
