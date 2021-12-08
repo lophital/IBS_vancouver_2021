@@ -1,7 +1,7 @@
 ---
-title:  "<span style='font-size: 25px'>RHST vs SDM</style>"
-subtitle: "<span style='font-size: 15px'>세종보로 시연, 나머지 하천은 곧바로 래스터 생산에 투입</style>"
-author: "전청옥 서울대학교 지리학과"
+title:  "<span style='font-size: 25px'>IBS Vancouver 2022 poster</style>"
+subtitle: "<span style='font-size: 15px'>Effect of eigenfunction-based spatial variables on the prediction of SDM</style>"
+author: "Jeon, Cheongok, Seoul National University, South Korea"
 date: "`r Sys.Date()`"
 output:
   rmdformats::downcute:
@@ -64,11 +64,20 @@ library(tidyverse)
 library(sf)
 library(rnaturalearth)
 library(disdat)
+library(vegan)
+library(geosphere)
+library(furrr)
+
 ```
 
 ```{r}
 getwd()
 ```
+```{r}
+future::plan(multisession, workers = 20)
+memory.limit(9999999999)
+```
+
 
 ```{r}
 my.region <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
@@ -172,27 +181,58 @@ SDMdata.AWT.pa$awt01
 map(SDMdata.AWT.pa, function(x){filter(x, pa == 1)})
 ```
 
-2nd PA doesn't have environmental variables
+PA doesn't have environmental variables
+
 
 
 ```{r}
-SDMdata.AWT.pa <- map(SDMdata.AWT.pa, function(x){merge(x, SDMdata.AWT$env, by = "siteid")})
-SDMdata.CAN.pa <- map(SDMdata.CAN.pa, function(x){merge(x, SDMdata.CAN$env, by = "siteid")}) 
-SDMdata.NSW.pa <- map(SDMdata.NSW.pa, function(x){merge(x, SDMdata.NSW$env, by = "siteid")})
-SDMdata.NZ.pa <- map(SDMdata.NZ.pa, function(x){merge(x, SDMdata.NZ$env, by = "siteid")})
-SDMdata.SA.pa <- map(SDMdata.SA.pa, function(x){merge(x, SDMdata.SA$env, by = "siteid")})
-SDMdata.SWI.pa <- map(SDMdata.SWI.pa, function(x){merge(x, SDMdata.SWI$env, by = "siteid")})
+SDMdata.AWT.pa <- map(SDMdata.AWT.pa, function(x){merge(x, SDMdata.AWT$env, by = "siteid") %>%
+                                                  rename(group = group.x,
+                                                         x = x.x,
+                                                         y = y.x) %>%
+                                                  select(!c("group.y", "x.y", "y.y"))})
+
+SDMdata.CAN.pa <- map(SDMdata.CAN.pa, function(x){merge(x, SDMdata.CAN$env, by = "siteid") %>%
+                                                  rename(group = group.x,
+                                                         x = x.x,
+                                                         y = y.x) %>%
+                                                  select(!c("group.y", "x.y", "y.y"))}) 
+
+SDMdata.NSW.pa <- map(SDMdata.NSW.pa, function(x){merge(x, SDMdata.NSW$env, by = "siteid") %>%
+                                                  rename(group = group.x,
+                                                         x = x.x,
+                                                         y = y.x) %>%
+                                                  select(!c("group.y", "x.y", "y.y"))})
+
+SDMdata.NZ.pa <- map(SDMdata.NZ.pa, function(x){merge(x, SDMdata.NZ$env, by = "siteid") %>%
+                                                  rename(group = group.x,
+                                                         x = x.x,
+                                                         y = y.x) %>%
+                                                  select(!c("group.y", "x.y", "y.y"))})
+
+SDMdata.SA.pa <- map(SDMdata.SA.pa, function(x){merge(x, SDMdata.SA$env, by = "siteid") %>%
+                                                  rename(group = group.x,
+                                                         x = x.x,
+                                                         y = y.x) %>%
+                                                  select(!c("group.y", "x.y", "y.y"))})
+
+SDMdata.SWI.pa <- map(SDMdata.SWI.pa, function(x){merge(x, SDMdata.SWI$env, by = "siteid") %>%
+                                                  rename(group = group.x,
+                                                         x = x.x,
+                                                         y = y.x) %>%
+                                                  select(!c("group.y", "x.y", "y.y"))})
 ```
+
+We got PA.p, PA.a, PO.p 
+What if... PA.P + PO.p = PO?
+
+
 
 
 
 
 # 2. Adding PCNM variables
 
-```{r}
-library(vegan)
-library(geosphere)
-```
 
 
 ```{r}
@@ -288,17 +328,117 @@ distm.NSW.po <- map(sf.NSW.po, my.geodistm)
 distm.NZ.po <- map(sf.NZ.po, my.geodistm)
 distm.SA.po <- map(sf.SA.po, my.geodistm)
 distm.SWI.po <- map(sf.SWI.po, my.geodistm)
-
 ```
-
 
 
 ```{r}
-distGeo(SDMdata.AWT.po$awt01, a = df.ref2[4,"a"], f = df.ref2[4,"f"])
+pcnm.AWT.po <- map(distm.AWT.po, pcnm)
+pcnm.CAN.po <- map(distm.CAN.po, pcnm)
+pcnm.NSW.po <- map(distm.NSW.po, pcnm)
+pcnm.NZ.po <- map(distm.NZ.po, pcnm)
+pcnm.SA.po <- map(distm.SA.po, pcnm)
+pcnm.SWI.po <- map(distm.SWI.po, pcnm)
+```
+
+```{r}
+for(i in 1:length(pcnm.AWT.po)){
+  sf.AWT.po[[i]] <- cbind(sf.AWT.po[[i]], pcnm.AWT.po[[i]]$vectors)
+}
+
+for(i in 1:length(pcnm.CAN.po)){
+  sf.CAN.po[[i]] <- cbind(sf.CAN.po[[i]], pcnm.CAN.po[[i]]$vectors)
+}
+
+for(i in 1:length(pcnm.NSW.po)){
+  sf.NSW.po[[i]] <- cbind(sf.NSW.po[[i]], pcnm.NSW.po[[i]]$vectors)
+}
+
+for(i in 1:length(pcnm.NZ.po)){
+  sf.NZ.po[[i]] <- cbind(sf.NZ.po[[i]], pcnm.NZ.po[[i]]$vectors)
+}
+
+for(i in 1:length(pcnm.SA.po)){
+  sf.SA.po[[i]] <- cbind(sf.SA.po[[i]], pcnm.SA.po[[i]]$vectors)
+}
+
+for(i in 1:length(pcnm.SWI.po)){
+  sf.SWI.po[[i]] <- cbind(sf.SWI.po[[i]], pcnm.SWI.po[[i]]$vectors)
+}
 
 ```
 
 
+
+added PCNM variable to presence only dataset
+move on to absence PCNM variables
+```{r}
+
+sf.AWT.pa <- map(SDMdata.AWT.pa, my.transformer.AWT)
+sf.CAN.pa <- map(SDMdata.CAN.pa, my.transformer.CAN)
+sf.NSW.pa <- map(SDMdata.NSW.pa, function(x){x %>%
+                                              sf::st_as_sf(coords = c("x","y"),
+                                                           crs = 4326) %>% 
+                                                  st_coordinates() %>%
+                                                  cbind(x)} %>% 
+                                              dplyr::rename(long = X,
+                                                            lat = Y)
+                 )
+sf.NZ.pa <- map(SDMdata.NZ.pa, my.transformer.NZ)
+sf.SA.pa <- map(SDMdata.SA.pa, function(x){x %>%
+                                              sf::st_as_sf(coords = c("x","y"),
+                                                           crs = 4326) %>% 
+                                                  st_coordinates() %>%
+                                                  cbind(x)} %>% 
+                                              dplyr::rename(long = X,
+                                                            lat = Y)
+                 )
+
+sf.SWI.pa <- map(SDMdata.SWI.pa, my.transformer.SWI)
+
+```
+
+
+```{r}
+distm.AWT.pa.a <- map(map(sf.AWT.pa, function(x){x %>% filter(pa == 0)}), my.geodistm)
+distm.CAN.pa.a <- map(map(sf.CAN.pa, function(x){x %>% filter(pa == 0)}), my.geodistm)
+distm.NSW.pa.a <- map(map(sf.NSW.pa, function(x){x %>% filter(pa == 0)}), my.geodistm)
+distm.NZ.pa.a <- map(map(sf.NZ.pa, function(x){x %>% filter(pa == 0)}), my.geodistm)
+distm.SA.pa.a <- map(map(sf.SA.pa, function(x){x %>% filter(pa == 0)}), my.geodistm)
+distm.SWI.pa.a <- map(map(sf.SWI.pa, function(x){x %>% filter(pa == 0)}), my.geodistm)
+
+distm.AWT.pa.p <- map(map(sf.AWT.pa, function(x){x %>% filter(pa == 1)}), my.geodistm)
+distm.CAN.pa.p <- map(map(sf.CAN.pa, function(x){x %>% filter(pa == 1)}), my.geodistm)
+distm.NSW.pa.p <- map(map(sf.NSW.pa, function(x){x %>% filter(pa == 1)}), my.geodistm)
+distm.NZ.pa.p <- map(map(sf.NZ.pa, function(x){x %>% filter(pa == 1)}), my.geodistm)
+distm.SA.pa.p <- map(map(sf.SA.pa, function(x){x %>% filter(pa == 1)}), my.geodistm)
+distm.SWI.pa.p <- map(map(sf.SWI.pa, function(x){x %>% filter(pa == 1)}), my.geodistm)
+```
+
+
+```{r}
+pcnm.AWT.pa.a <- future_map(distm.AWT.pa.a, pcnm)
+pcnm.CAN.pa.a <- future_map(distm.CAN.pa.a, pcnm)
+pcnm.NSW.pa.a <- future_map(distm.NSW.pa.a, pcnm)
+pcnm.NZ.pa.a <- future_map(distm.NZ.pa.a, pcnm)
+pcnm.SA.pa.a <- future_map(distm.SA.pa.a, pcnm)
+pcnm.SWI.pa.a <- future_map(distm.SWI.pa.a, pcnm)
+
+pcnm.AWT.pa.p <- future_map(distm.AWT.pa.p, pcnm)
+pcnm.CAN.pa.p <- future_map(distm.CAN.pa.p, pcnm)
+pcnm.NSW.pa.p <- future_map(distm.NSW.pa.p, pcnm)
+pcnm.NZ.pa.p <- future_map(distm.NZ.pa.p, pcnm)
+pcnm.SA.pa.p <- future_map(distm.SA.pa.p, pcnm)
+pcnm.SWI.pa.p <- future_map(distm.SWI.pa.p, pcnm)
+
+
+```
+
+
+```{r}
+#무거워서 따로 뺌
+pcnm.NZ.pa.a <- future_map(distm.NZ.pa.a, pcnm)
+pcnm.NZ.pa.p <- future_map(distm.NZ.pa.p, pcnm)
+```
 
 
 
